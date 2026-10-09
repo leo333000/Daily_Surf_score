@@ -1,0 +1,26 @@
+# Virtual environment
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Tests and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Secrets
+.env
+
+# Spot table written by -v
+surf_alert_report.csv
+
+# Claude Code personal settings
+.claude/settings.local.json
+
+# macOS
+.DS_Store

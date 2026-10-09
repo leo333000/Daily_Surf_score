@@ -1,0 +1,108 @@
+# Surf Alert configuration.
+# Copy this file to surf_alert.toml and edit it:
+#   cp surf_alert.example.toml surf_alert.toml
+
+# Optional. Every key below is optional and shows its default, except `notes`.
+[settings]
+height_unit = "ft"            # "ft" or "m". Used for display and for height rule values.
+wind_unit = "kts"             # "kts", "kph" or "mph". Used for display and wind rule values.
+temperature_unit = "C"        # "C" or "F".
+min_good_hours = 1            # Integer 1..24: how many of today's remaining daylight hours
+                              # must pass every rule for a spot to be considered.
+jev_threshold = 0.7           # 0 < x <= 1: minimum Jev probability to recommend a spot.
+jev_model = "jev-latest"      # TypeSafe Jev model name.
+on_jev_error = "rules_only"   # "rules_only": still notify based on the rules if Jev fails.
+                              # "skip": send nothing if Jev fails.
+max_spots_in_message = 3      # Integer 1..10: spots shown in full; the rest are listed by name.
+notes = "Intermediate surfer; prefer offshore or light winds."   # Free text passed to Jev.
+
+# Spots: one [[spots]] table per spot (at most 50).
+# `id` is the last part of the spot's Surfline URL, for example
+# https://www.surfline.com/surf-report/pipeline/5842041f4e65fad6a7708890
+[[spots]]
+name = "Playa del Saladar"                    # Non-empty and unique (case-insensitive).
+id = "640f16a66d5ecc0a5b5421f6"      # 24 hexadecimal characters, unique.
+notes = "Only surf it when it is over 2 ft, and a swell period over 7 seconds."    # Optional free text passed to Jev.
+
+
+[[spots]]
+name = "Thurso East"                    # Non-empty and unique (case-insensitive).
+id = "5842041f4e65fad6a7708caf"      # 24 hexadecimal characters, unique.
+notes = "Only surf it when it is over 2 ft, and a swell period over 7 seconds, or ."    # Optional free text passed to Jev.
+
+[[spots]]
+name = "Platja de San Juan"            # Non-empty and unique (case-insensitive).
+id = "584204204e65fad6a7709495"      # 24 hexadecimal characters, unique.
+notes = "Only surf it when it is over 2 ft"    # Optional free text passed to Jev.
+
+
+[[spots]]
+name = "La Mata"                    # Non-empty and unique (case-insensitive).
+id = "584204204e65fad6a7709486"      # 24 hexadecimal characters, unique.
+notes = "Only surf it when it has a surf_optimal_score greater than 2"    # Optional free text passed to Jev.
+
+# Alicante: every Surfline spot within 15 km of the city centre (added 2026-10-09).
+[[spots]]
+name = "Playa del Postiguet"                    # Non-empty and unique (case-insensitive).
+id = "640f17fdd19c66cbca7242a7"      # 24 hexadecimal characters, unique.
+notes = "Only surf it when it is over 3 ft, and a swell period over 7 seconds."    # Optional free text passed to Jev.
+
+[[spots]]
+name = "Playa de Babel"                    # Non-empty and unique (case-insensitive).
+id = "640f178d326c1765535498d0"      # 24 hexadecimal characters, unique.
+notes = "Only surf it when it is over 2 ft, and a swell period over 7 seconds."    # Optional free text passed to Jev.
+
+[[spots]]
+name = "Playa de la Albufereta"                    # Non-empty and unique (case-insensitive).
+id = "640f1808355469c812b894e7"      # 24 hexadecimal characters, unique.
+notes = "Only surf it when it is over 2 ft, and a swell period over 7 seconds."    # Optional free text passed to Jev.
+
+[[spots]]
+name = "Cala Cantalar"                    # Non-empty and unique (case-insensitive).
+id = "640f1813d19c66bd4d72472b"      # 24 hexadecimal characters, unique.
+notes = "Only surf it when it is over 2 ft, and a swell period over 7 seconds."    # Optional free text passed to Jev.
+
+[[spots]]
+name = "Playa Muchavista"                    # Non-empty and unique (case-insensitive).
+id = "640f171438476e74a0cea7b2"      # 24 hexadecimal characters, unique.
+notes = "Only surf it when it is over 2 ft, and a swell period over 7 seconds."    # Optional free text passed to Jev.
+
+# Add more spots like this (uncomment and replace the id with a real one):
+# [[spots]]
+# name = "My Local Break"
+# id = "000000000000000000000000"
+
+# Rules: every rule must pass in the same hour for that hour to count as good.
+# Metrics: wave_height_min, wave_height_max, surf_rating, swell_height,
+#          swell_period, wind_speed, wind_gust, wind_direction_type, tide_height,
+#          temperature, weather_condition
+# surf_rating is Surfline's rating: 0 very poor, 1 poor, 2 poor to fair, 3 fair,
+#   4 fair to good, 5 good, 6 epic.
+# Numeric metrics take a number and one of: >, >=, <, <=, ==, !=
+# Text metrics (wind_direction_type, weather_condition) take:
+#   ==, != with a string, or in, not_in with a list of strings (case is ignored).
+[[rules]]
+metric = "wave_height_min"
+op = ">"
+value = 2
+
+[[rules]]
+metric = "swell_period"
+op = ">"
+value = 7
+
+[[rules]]
+metric = "wind_direction_type"
+op = "in"
+value = ["Offshore", "Cross-shore"]
+#
+[[rules]]
+metric = "wind_speed"
+op = "<="
+value = 15
+
+# Surfline's own rating: fair or better
+[[rules]]
+metric = "surf_rating"
+op = ">="
+value = 2

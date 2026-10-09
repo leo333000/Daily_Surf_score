@@ -1,0 +1,4 @@
+requests>=2.31
+python-dotenv>=1.0
+pysurfline @ git+https://github.com/wolfinger/pysurfline@f0c98ea06ce9f26f5ba9e3b94ac98963150f7ddc
+pytest>=8
