@@ -69,6 +69,17 @@ def isolate_report(monkeypatch, tmp_path):
 
 
 @pytest.fixture(autouse=True)
+def no_launchd(monkeypatch):
+    """`cli.make_scheduler` fails unless a test replaces it, so no test touches the real launchd."""
+    import surf_alert.cli as cli_module
+
+    def _blocked():
+        raise RuntimeError("launchd access is disabled in tests")
+
+    monkeypatch.setattr(cli_module, "make_scheduler", _blocked)
+
+
+@pytest.fixture(autouse=True)
 def reset_logging():
     """Undo `cli.main`'s logging changes (levels and plain StreamHandlers)."""
     root = logging.getLogger()

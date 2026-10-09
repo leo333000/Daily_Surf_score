@@ -12,7 +12,7 @@ import dotenv
 
 from surf_alert.app import evaluate_spots, run_check
 from surf_alert.config import load_config
-from surf_alert.errors import ConfigError, NotificationError
+from surf_alert.errors import ConfigError, NotificationError, ScheduleError
 from surf_alert.evaluate import describe_rule
 from surf_alert.jev import JevClient, JevLike
 from surf_alert.message import format_rules_status, format_spot_block
@@ -25,6 +25,7 @@ from surf_alert.report import (
     format_report,
     write_csv,
 )
+from surf_alert.schedule import DEFAULT_TIME, LOG_PATH, Job, Scheduler, parse_time
 from surf_alert.surfline import ForecastSource, SurflineClient
 
 logger = logging.getLogger(__name__)
@@ -53,6 +54,17 @@ def make_notifier(phone: str, api_key: str) -> Notifier:
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def make_scheduler() -> Scheduler:
+    return Scheduler()
+
+
+def _time_arg(text: str) -> tuple[int, int]:
+    try:
+        return parse_time(text)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from None
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -94,6 +106,26 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dry-run", action="store_true", help="print the message instead of sending it"
     )
     commands.add_parser("test-notification", help="send a test message through WhatsApp")
+    schedule = commands.add_parser(
+        "schedule", help="run `check` every day with launchd (macOS): start, stop or status"
+    )
+    actions = schedule.add_subparsers(dest="action", metavar="ACTION", required=True)
+    start = actions.add_parser(
+        "start",
+        help="stop the current daily job if there is one, then schedule `check` every day "
+        "with --config and --env-file",
+    )
+    start.add_argument(
+        "--time",
+        type=_time_arg,
+        default=DEFAULT_TIME,
+        metavar="HH:MM",
+        help=f"local time of the daily run, 24-hour (default: {DEFAULT_TIME})",
+    )
+    actions.add_parser(
+        "stop", help="stop the daily job, including a run in progress, and remove it"
+    )
+    actions.add_parser("status", help="show the daily job and check its config file")
     return parser
 
 
@@ -268,6 +300,84 @@ def _cmd_test_notification(env_file: str) -> int:
     return 0
 
 
+def _schedule_start(
+    scheduler: Scheduler, config_path: str, env_file: str, hour: int, minute: int
+) -> int:
+    config_path = os.path.abspath(config_path)
+    env_file = os.path.abspath(env_file)
+    try:
+        load_config(config_path)
+    except ConfigError as exc:
+        _error(f"{exc}\nThe daily job was not changed.")
+        return 1
+    if not os.path.isfile(env_file):
+        _warning(
+            f"no env file at {env_file}; the daily check reads its API keys from there "
+            "(see .env.example)"
+        )
+
+    job = Job(hour, minute, config_path, env_file, str(LOG_PATH))
+    if scheduler.install(job, sys.executable):
+        print("Stopped the previous daily job.")
+    print(f"Scheduled `check` every day at {job.time}.")
+    print(f"  config: {job.config_path}")
+    print(f"  log:    {job.log_path}")
+    print("Edits to the config file apply from the next run; there is no need to restart the job.")
+    return 0
+
+
+def _schedule_stop(scheduler: Scheduler) -> int:
+    if scheduler.uninstall():
+        print("Stopped and removed the daily job.")
+    else:
+        print("There is no daily job to stop.")
+    return 0
+
+
+def _schedule_status(scheduler: Scheduler) -> int:
+    status = scheduler.status()
+    job = status.job
+    if job is None:
+        if status.loaded:
+            print("Not scheduled, but launchd still has the job loaded; run `schedule stop`.")
+        else:
+            print("Not scheduled.")
+        return 0
+
+    if not status.loaded:
+        state = "not loaded, so it will not run; run `schedule start` again"
+    elif status.pid is not None:
+        state = f"running now, pid {status.pid}"
+    elif status.last_exit_code is None or status.last_exit_code.startswith("("):
+        state = "has not run yet"
+    else:
+        state = f"last run exited with code {status.last_exit_code}"
+    print(f"Scheduled `check` every day at {job.time} ({state}).")
+    print(f"  config: {job.config_path}")
+    print(f"  log:    {job.log_path}")
+    try:
+        load_config(job.config_path)
+    except ConfigError as exc:
+        _error(f"the next run will fail: {exc}")
+        return 1
+    print("The config file is valid.")
+    return 0
+
+
+def _cmd_schedule(args: argparse.Namespace) -> int:
+    scheduler = make_scheduler()
+    try:
+        if args.action == "start":
+            hour, minute = args.time
+            return _schedule_start(scheduler, args.config, args.env_file, hour, minute)
+        if args.action == "stop":
+            return _schedule_stop(scheduler)
+        return _schedule_status(scheduler)
+    except ScheduleError as exc:
+        _error(str(exc))
+        return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
@@ -280,6 +390,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "test-notification":
         return _cmd_test_notification(args.env_file)
+    if args.command == "schedule":
+        return _cmd_schedule(args)
 
     try:
         config = load_config(args.config)

@@ -19,6 +19,9 @@ htmlcov/
 # Spot table written by -v
 surf_alert_report.csv
 
+# Output of the scheduled daily check
+surf_alert.log
+
 # Claude Code personal settings
 .claude/settings.local.json
 

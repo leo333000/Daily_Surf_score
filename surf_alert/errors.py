@@ -13,6 +13,10 @@ class ConfigError(SurfAlertError):
     """The config file is missing, unreadable, not valid TOML, or has invalid content."""
 
 
+class ScheduleError(SurfAlertError):
+    """launchctl failed, or the daily job could not be installed, removed or read."""
+
+
 class SurflineError(SurfAlertError):
     """Fetching or parsing one spot's Surfline forecast failed."""
 

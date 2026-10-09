@@ -73,6 +73,9 @@ Run everything from the project root. Global options go before the command:
 | `check` | Fetch, evaluate, ask Jev, and send the WhatsApp message. |
 | `check --dry-run` | The same, but print the message instead of sending it (WhatsApp variables not needed). |
 | `test-notification` | Send a test WhatsApp message (does not read the config). |
+| `schedule start [--time HH:MM]` | Run `check` every day at that local time (default 06:00), replacing the current daily job. See [Running daily](#running-daily). |
+| `schedule stop` | Stop the daily job, including a run in progress, and remove it. |
+| `schedule status` | Show the daily job and check that its config file is valid. |
 
 `--config` defaults to `surf_alert.toml` and `--env-file` to `.env`, both relative to the
 current directory. `-v` logs debug information to stderr.
@@ -101,7 +104,8 @@ unchanged):
   never asks Jev. The file is git-ignored.
 
 Exit codes: `0` success (a message was sent or printed, or there was nothing to send), `1`
-config error, missing or invalid environment variable, or unknown `--spot`, `2` usage error,
+config error, missing or invalid environment variable, unknown `--spot`, or a `schedule`
+command that failed (or `schedule status` finding the config invalid), `2` usage error,
 `3` degraded run (a spot failed to fetch or the Jev call failed; a message may still have been
 sent), `4` sending the WhatsApp message failed.
 
@@ -114,18 +118,42 @@ Before scheduling, run these once by hand:
 .venv/bin/python -m surf_alert test-notification
 ```
 
-The recommended setup is a cron entry that runs at 06:00 local time. Open your crontab with
-`crontab -e` and add:
+Then schedule the daily run (macOS):
 
-```
-0 6 * * * cd /Users/leoxyde/Documents/Coding/Python/ClaudeAgentsScripts && .venv/bin/python -m surf_alert --config surf_alert.toml check >> "$HOME/Library/Logs/surf_alert.log" 2>&1
+```sh
+.venv/bin/python -m surf_alert schedule start             # every day at 06:00
+.venv/bin/python -m surf_alert schedule start --time 07:30
 ```
 
-On macOS, cron jobs don't run while the Mac is asleep. A launchd agent runs a missed job when
-the Mac wakes: create `~/Library/LaunchAgents/<label>.plist` with `StartCalendarInterval`
-(Hour 6, Minute 0), `ProgramArguments` running the same command, and `WorkingDirectory` set to
-the project root, then load it with `launchctl`. The app does not install cron or launchd
-entries itself.
+`schedule start` checks the config file, then installs a launchd agent
+(`~/Library/LaunchAgents/com.leoxyde.surfalert.plist`) that runs `check` every day at that time.
+launchd runs a missed run when the Mac wakes up. If a daily job already exists, it is stopped
+first (a run in progress is killed) and replaced, so run `schedule start` again whenever you
+want a different time or config file. The job stores the absolute paths of `--config` and
+`--env-file`, so you can run the command from any directory:
+
+```sh
+.venv/bin/python -m surf_alert --config other.toml schedule start
+```
+
+The output of every run is appended to `surf_alert.log` in the project folder (git-ignored).
+
+**Changing the config while the job is scheduled:** edit `surf_alert.toml` (or whichever
+file the job uses) at any time. `check` reads the file again on every run, so the change
+applies from the next run, with no need to restart the job. Run `schedule status` after
+editing: it shows the job's time, config file and log, whether a run is in progress, and the
+last run's exit code, and it reports an error (exit code 1) if the config would make the next run
+fail. `schedule start` refuses an invalid config and leaves the current job unchanged.
+
+To stop the daily messages:
+
+```sh
+.venv/bin/python -m surf_alert schedule stop
+```
+
+`schedule` needs a `.env` file: launchd jobs do not see your shell's environment variables, so
+`schedule start` warns if the env file is missing. On another OS, use cron instead, for example
+`0 6 * * * cd /path/to/project && .venv/bin/python -m surf_alert check >> surf_alert.log 2>&1`.
 
 Notes:
 - Only "today" is evaluated, in each spot's local time, from now until dusk. A run after dusk
